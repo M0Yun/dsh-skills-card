@@ -7,6 +7,36 @@ window.__ModuleLoader__.load({
 
     const PANEL_ID = 'skills-card'
     const STYLE_ID = 'skills-card-inline-style'
+    const COLLAPSE_KEY = 'skills-card:collapsed'
+
+    // 折叠状态按文件夹 id 存在 localStorage 里，刷新/重开页面都记得
+    function readCollapsed() {
+      try {
+        const raw = window.localStorage.getItem(COLLAPSE_KEY)
+        if (!raw) return {}
+        const data = JSON.parse(raw)
+        if (!data || typeof data !== 'object') return {}
+        const out = {}
+        for (const key of Object.keys(data)) {
+          if (data[key]) out[key] = true
+        }
+        return out
+      } catch (e) {
+        return {}
+      }
+    }
+
+    function writeCollapsed(state) {
+      try {
+        const keep = {}
+        for (const key of Object.keys(state || {})) {
+          if (state[key]) keep[key] = true
+        }
+        window.localStorage.setItem(COLLAPSE_KEY, JSON.stringify(keep))
+      } catch (e) {
+        /* 隐私模式/配额满就只是不记 */
+      }
+    }
 
     const T = {
       ink: 'var(--dsw-alias-label-primary, currentColor)',
@@ -424,7 +454,7 @@ window.__ModuleLoader__.load({
       const [draft, setDraft] = useState('')
       const [renaming, setRenaming] = useState(null) // { id, value }
       const [delAsk, setDelAsk] = useState('')
-      const [collapsed, setCollapsed] = useState({})
+      const [collapsed, setCollapsed] = useState(readCollapsed)
       const [dropTarget, setDropTarget] = useState(null)
       const [active, setActive] = useState('')
       const [busy, setBusy] = useState(false)
@@ -498,6 +528,9 @@ window.__ModuleLoader__.load({
       }, [])
 
       useEffect(() => { load() }, [load])
+
+      // 折叠状态变化就记下来，下次打开还是这个样子
+      useEffect(() => { writeCollapsed(collapsed) }, [collapsed])
 
       // 离开这个面板时把浮窗一起收掉，免得卡片留在屏幕上
       useEffect(() => () => closeCard(), [])
@@ -675,7 +708,8 @@ window.__ModuleLoader__.load({
       }
 
       const groupOf = (g) => {
-        const isCollapsed = !!collapsed[g.id]
+        // 搜索时忽略折叠，免得命中的技能藏在收起的分组里
+        const isCollapsed = !kw && !!collapsed[g.id]
         const dropKey = g.id || '__uncat'
         const drop = dropTarget === dropKey
         return h('div', {
